@@ -1,0 +1,17 @@
+{
+  "name": "diario-joelho",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Diário pessoal de saúde, dieta e reabilitação do joelho",
+  "scripts": {
+    "dev": "node local.js",
+    "start": "node local.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.39.0",
+    "express": "^5.2.1"
+  }
+}
