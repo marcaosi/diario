@@ -92,6 +92,7 @@
       refeicoes: {},
       suplementos: [],
       agua: 4,
+      glicemia: { jejum: '', posShake: '' },
       bemestar: { energia: null, mental: null, intestino: null },
       obs: '',
     };
@@ -275,7 +276,12 @@
     ...P.blocos.map((b) => ({
       titulo: b.titulo,
       intro: b.id === 'manha' ? 'Sem culpa: o registro honesto vale mais que o dia perfeito.' : '',
-      render: () => b.ids.map((id) => blocoRefeicao(P.refeicoes.find((r) => r.id === id))).join(''),
+      render: () => (b.id === 'manha'
+        ? pergunta('Glicemia capilar', `<div class="glicemia">
+            <label class="campo"><span>Em jejum (mg/dL)</span><input type="number" inputmode="numeric" min="30" max="400" data-field="glicemia.jejum" value="${esc(d().glicemia.jejum)}" placeholder="Ex.: 98"></label>
+            <label class="campo"><span>Depois do shake (mg/dL)</span><input type="number" inputmode="numeric" min="30" max="400" data-field="glicemia.posShake" value="${esc(d().glicemia.posShake)}" placeholder="Ex.: 130"></label>
+          </div>`, 'Pedido da Geovana para avaliar o pré-treino. Opcional: deixe em branco se não mediu.')
+        : '') + b.ids.map((id) => blocoRefeicao(P.refeicoes.find((r) => r.id === id))).join(''),
     })),
     {
       titulo: 'Suplementos e água',
@@ -374,6 +380,11 @@
       const faltou = P.suplementos.filter((x) => !sup.includes(x.id)).map((x) => x.nome);
       L.push(`  Suplementos: ${sup.length} de ${P.suplementos.length}${faltou.length ? ` (não tomou: ${faltou.join(', ')})` : ' (todos)'}`);
     }
+    const g = e.glicemia || {};
+    const gl = [];
+    if (g.jejum) gl.push(`jejum ${g.jejum} mg/dL`);
+    if (g.posShake) gl.push(`depois do shake ${g.posShake} mg/dL`);
+    if (gl.length) L.push(`  Glicemia capilar: ${gl.join(', ')}`);
     if (e.agua != null) L.push(`  Água: ${fmtNum(e.agua)} L`);
 
     const b = e.bemestar || {};
@@ -434,7 +445,7 @@
     const r18 = { seguiu: 0, parcial: 0, trocou: 0, pulou: 0 };
     lista.forEach((e) => {
       Object.entries(e.refeicoes || {}).forEach(([id, r]) => {
-        if (!r || !r.status) return;
+        if (!r || !r.status || !P.refeicoes.some((x) => x.id === id)) return;
         total += 1;
         if (r.status === 'seguiu') seguidas += 1;
         if (id === 'lanche_18') r18[r.status] += 1;
@@ -448,6 +459,10 @@
     const sofa = lista.filter((e) => e.sono && (e.sono.local === 'sofa' || e.sono.local === 'parte_sofa')).length;
     L.push(`- Sono médio: ${fmtNum(horas)} h${sofa ? `; noites com sofá: ${sofa}` : ''}`);
     L.push(`- Água média: ${fmtNum(media(lista.map((e) => e.agua)))} L`);
+    const gj = lista.map((e) => Number(e.glicemia && e.glicemia.jejum)).filter((n) => n > 0);
+    const gp = lista.map((e) => Number(e.glicemia && e.glicemia.posShake)).filter((n) => n > 0);
+    if (gj.length) L.push(`- Glicemia de jejum: média ${fmtNum(media(gj))} mg/dL em ${gj.length} medições (de ${Math.min(...gj)} a ${Math.max(...gj)})`);
+    if (gp.length) L.push(`- Glicemia depois do shake: média ${fmtNum(media(gp))} mg/dL em ${gp.length} medições (de ${Math.min(...gp)} a ${Math.max(...gp)})`);
     const intestino = lista.filter((e) => e.bemestar && e.bemestar.intestino === 'desconforto').length;
     if (intestino) L.push(`- Dias com gases fortes ou desconforto intestinal: ${intestino}`);
     L.push('');

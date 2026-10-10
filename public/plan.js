@@ -3,22 +3,20 @@
 window.PLAN = {
   nome: 'Marcos',
 
+  // Plano de out a nov/2026 (prescrito em 10/10/2026)
   refeicoes: [
-    { id: 'shake', hora: '06:30', nome: 'Pré-treino', desc: 'Shake: leite desnatado, banana, beterraba em pó, whey e beta-alanina.' },
-    { id: 'antiinflamatoria', hora: '08:15', nome: 'Estratégia anti-inflamatória', desc: 'Própolis verde, maca peruana e feno-grego dissolvidos em água.' },
+    { id: 'shake', hora: '06:30', nome: 'Café da manhã (pré-treino)', desc: 'Shake: leite desnatado, banana, beterraba em pó, whey, feno-grego, maca, guaraná e beta-alanina.' },
     { id: 'cafe', hora: '08:30', nome: 'Café da manhã', desc: 'Panqueca de farelo de aveia com 3 ovos e café coado.' },
     { id: 'lanche_manha', hora: '10:40', nome: 'Lanche da manhã', desc: 'Melão ou uma das frutas substitutas.' },
-    { id: 'almoco', hora: '12:00', nome: 'Almoço', desc: 'Salada com azeite, frango ou patinho, ovo, arroz e feijão.' },
-    { id: 'lanche_tarde', hora: '15:30', nome: 'Lanche da tarde', desc: 'Pão integral com frango desfiado, requeijão light ou ricota e vegetais.' },
-    { id: 'lanche_18', hora: '18:00', nome: 'Lanche da tarde 2', desc: 'Omeletão proteico ou carne gratinada com queijo.', destaque: true },
-    { id: 'pre_jantar', hora: 'Antes do jantar', nome: 'Chá com psyllium', desc: 'Chá sem açúcar e 1 colher de sopa de psyllium.' },
-    { id: 'jantar', hora: '21:00', nome: 'Jantar', desc: 'Salada, legumes, frango ou carne, arroz (ou substituto) e salada de frutas.' },
+    { id: 'almoco', hora: '12:00', nome: 'Almoço', desc: 'Salada com azeite, frango, patinho ou outra carne magra, arroz e feijão.' },
+    { id: 'lanche_tarde', hora: '15:30', nome: 'Lanche da tarde 1', desc: 'Torradinhas Magic Toast com frango e requeijão light, café e morango.' },
+    { id: 'lanche_18', hora: '18:00', nome: 'Lanche da tarde 2', desc: 'Pão francês com frango, carne ou atum e muçarela, ou vitamina com whey vegano, banana, aveia e pasta de amendoim.', destaque: true },
+    { id: 'jantar', hora: '21:00', nome: 'Jantar', desc: 'Salada e legumes, frango ou carne moída, arroz (ou substituto) e abacaxi.' },
   ],
 
   blocos: [
-    { id: 'manha', titulo: 'Refeições da manhã', ids: ['shake', 'antiinflamatoria', 'cafe', 'lanche_manha'] },
-    { id: 'tarde', titulo: 'Refeições da tarde', ids: ['almoco', 'lanche_tarde', 'lanche_18'] },
-    { id: 'noite', titulo: 'Refeições da noite', ids: ['pre_jantar', 'jantar'] },
+    { id: 'manha', titulo: 'Refeições da manhã', ids: ['shake', 'cafe', 'lanche_manha'] },
+    { id: 'tarde', titulo: 'Refeições da tarde e da noite', ids: ['almoco', 'lanche_tarde', 'lanche_18', 'jantar'] },
   ],
 
   treinos: [
