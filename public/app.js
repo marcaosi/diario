@@ -47,6 +47,14 @@
     if (n === 4) return 'amarelo';
     return 'vermelho';
   }
+  function intensidadeTexto(n) {
+    if (n == null) return '0 a 2 muito leve · 3 a 4 leve · 5 a 6 moderado · 7 a 8 pesado · 9 a 10 máximo';
+    if (n <= 2) return 'Muito leve.';
+    if (n <= 4) return 'Leve: daria para conversar normalmente.';
+    if (n <= 6) return 'Moderado.';
+    if (n <= 8) return 'Pesado: perto do limite em várias séries.';
+    return 'Máximo: falha na maioria das séries.';
+  }
   function ancora(n) {
     if (n == null) return 'Toque em um número abaixo.';
     return P.escalaDor.find((a) => n <= a.ate).texto;
@@ -87,7 +95,8 @@
       date,
       sono: { horas: 7, qualidade: null, local: null, descansado: null },
       joelho: { acordar: null, escada: null, pior: null, sinais: [] },
-      treino: { tipo: null, fisio: null, durante: null, depois: null, sensacao: null, ajustes: '' },
+      treino: { tipo: null, fisio: null, durante: null, depois: null, sensacao: null, intensidade: null, intensidadeObs: '', ajustes: '' },
+      fodmap: { padrao: P.fodmapPadrao.map((x) => x.id), extras: [], outros: '' },
       atividades: { lista: [], dorMuay: null, dorVolei: null, minErgo: 20, minRua: 30 },
       refeicoes: {},
       suplementos: [],
@@ -109,6 +118,7 @@
   function abrirFormulario(date) {
     const existente = state.entries[date];
     state.draft = existente ? mesclar(draftVazio(date), JSON.parse(JSON.stringify(existente))) : draftVazio(date);
+    if (existente && !existente.fodmap) state.draft.fodmap.padrao = [];
     state.editandoData = existente ? date : null;
     state.step = 0;
     state.view = 'form';
@@ -252,6 +262,9 @@
           treinou ? campoDor('treino.durante', 'Dor no joelho durante o treino') : '',
           treinou ? campoDor('treino.depois', 'Dor logo depois do treino') : '',
           treinou ? pergunta('Como sentiu o treino?', chips('treino.sensacao', [{ v: 'leve', l: 'Leve' }, { v: 'ponto', l: 'No ponto' }, { v: 'pesado', l: 'Pesado' }])) : '',
+          treinou ? pergunta('Intensidade do treino', chips('treino.intensidade', Array.from({ length: 11 }, (_, i) => ({ v: i, l: String(i) })))
+            + `<p class="help" style="margin-top:8px">${esc(intensidadeTexto(t.intensidade))}</p>`
+            + texto('treino.intensidadeObs', 'Comentário sobre a intensidade (opcional)', 'Ex.: falhei no leg press, descanso maior entre séries'), 'Esforço percebido de 0 a 10.') : '',
           treinou ? pergunta('Ajustou alguma coisa?', texto('treino.ajustes', 'Opcional', 'Ex.: leg press só até 60°, tirei o drop-set')) : '',
         ].join('');
       },
@@ -284,6 +297,16 @@
         : '') + b.ids.map((id) => blocoRefeicao(P.refeicoes.find((r) => r.id === id))).join(''),
     })),
     {
+      titulo: 'Alimentos FODMAP',
+      intro: 'Para a Geovana observar o que pode estar causando gases.',
+      render: () => [
+        pergunta('Do plano', chips('fodmap.padrao', P.fodmapPadrao.map((x) => ({ v: x.id, l: x.nome })), { multi: true }),
+          'Já vêm marcados. Desmarque o que você não comeu hoje.'),
+        ...P.fodmapGrupos.map((g) => pergunta(g.titulo, chips('fodmap.extras', g.itens.map(([v, l]) => ({ v, l })), { multi: true }))),
+        pergunta('Outros', texto('fodmap.outros', 'Opcional', 'Ex.: grão-de-bico no restaurante')),
+      ].join(''),
+    },
+    {
       titulo: 'Suplementos e água',
       intro: 'Marque o que você tomou hoje.',
       render: () => [
@@ -313,6 +336,10 @@
   ];
 
   // ---------------- Texto do dia (revisão e resumo) ----------------
+  const FODMAP_NOMES = {};
+  P.fodmapGrupos.forEach((g) => g.itens.forEach(([v, l]) => { FODMAP_NOMES[v] = l.toLowerCase(); }));
+  const fodmapNomes = (ids) => (ids || []).map((id) => FODMAP_NOMES[id] || id);
+
   const ROTULOS = {
     local: { cama: 'na cama', parte_sofa: 'parte no sofá', sofa: 'no sofá' },
     descansado: { sim: 'sim', mais_ou_menos: 'mais ou menos', nao: 'não' },
@@ -350,7 +377,9 @@
       if (t.durante != null) tr.push(`dor durante ${t.durante}`);
       if (t.depois != null) tr.push(`dor depois ${t.depois}`);
       if (t.sensacao) tr.push(`sentiu ${ROTULOS.sensacao[t.sensacao]}`);
+      if (t.intensidade != null) tr.push(`intensidade ${t.intensidade}/10`);
       L.push(`  Musculação: ${tr.join(', ')}`);
+      if (t.intensidadeObs) L.push(`  Sobre a intensidade: ${t.intensidadeObs}`);
       if (t.ajustes) L.push(`  Ajustes no treino: ${t.ajustes}`);
     }
 
@@ -385,6 +414,13 @@
     if (g.jejum) gl.push(`jejum ${g.jejum} mg/dL`);
     if (g.posShake) gl.push(`depois do shake ${g.posShake} mg/dL`);
     if (gl.length) L.push(`  Glicemia capilar: ${gl.join(', ')}`);
+    const f = e.fodmap;
+    if (f) {
+      const extras = fodmapNomes(f.extras);
+      if (f.outros) extras.push(f.outros);
+      const naoComeu = P.fodmapPadrao.filter((x) => !(f.padrao || []).includes(x.id)).map((x) => x.nome.toLowerCase());
+      L.push(`  FODMAP fora do plano: ${extras.length ? extras.join(', ') : 'nenhum'}${naoComeu.length ? ` | do plano, não comeu: ${naoComeu.join(', ')}` : ''}`);
+    }
     if (e.agua != null) L.push(`  Água: ${fmtNum(e.agua)} L`);
 
     const b = e.bemestar || {};
@@ -463,6 +499,17 @@
     const gp = lista.map((e) => Number(e.glicemia && e.glicemia.posShake)).filter((n) => n > 0);
     if (gj.length) L.push(`- Glicemia de jejum: média ${fmtNum(media(gj))} mg/dL em ${gj.length} medições (de ${Math.min(...gj)} a ${Math.max(...gj)})`);
     if (gp.length) L.push(`- Glicemia depois do shake: média ${fmtNum(media(gp))} mg/dL em ${gp.length} medições (de ${Math.min(...gp)} a ${Math.max(...gp)})`);
+    const comInt = lista.filter((e) => e.treino && e.treino.intensidade != null);
+    if (comInt.length) L.push(`- Intensidade média da musculação: ${fmtNum(media(comInt.map((e) => e.treino.intensidade)))}/10`);
+    const comFod = lista.filter((e) => e.fodmap);
+    if (comFod.length) {
+      const cont = {};
+      comFod.forEach((e) => fodmapNomes(e.fodmap.extras).forEach((n) => { cont[n] = (cont[n] || 0) + 1; }));
+      const top = Object.entries(cont).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} ${c}x`);
+      L.push(`- FODMAP fora do plano (${comFod.length} dias registrados): ${top.length ? top.join(', ') : 'nenhum'}`);
+      const ruins = comFod.filter((e) => e.bemestar && (e.bemestar.intestino === 'desconforto' || e.bemestar.intestino === 'gases_leves'));
+      if (ruins.length) L.push(`- Dias com gases: ${ruins.map((e) => `${fmtData(e.date)} (${fodmapNomes(e.fodmap.extras).concat(e.fodmap.outros ? [e.fodmap.outros] : []).join(', ') || 'nenhum FODMAP fora do plano'})`).join('; ')}`);
+    }
     const intestino = lista.filter((e) => e.bemestar && e.bemestar.intestino === 'desconforto').length;
     if (intestino) L.push(`- Dias com gases fortes ou desconforto intestinal: ${intestino}`);
     L.push('');

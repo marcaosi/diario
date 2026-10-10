@@ -19,6 +19,22 @@ window.PLAN = {
     { id: 'tarde', titulo: 'Refeições da tarde e da noite', ids: ['almoco', 'lanche_tarde', 'lanche_18', 'jantar'] },
   ],
 
+  // FODMAP: itens do plano vêm marcados por padrão; os demais são marcados quando comidos
+  fodmapPadrao: [
+    { id: 'feijao', nome: 'Feijão' },
+    { id: 'leite', nome: 'Leite' },
+    { id: 'banana', nome: 'Banana' },
+    { id: 'beterraba', nome: 'Beterraba em pó' },
+    { id: 'pao', nome: 'Pão ou torrada' },
+  ],
+  fodmapGrupos: [
+    { titulo: 'Vegetais', itens: [['cebola', 'Cebola'], ['alho', 'Alho'], ['alho_poro', 'Alho-poró'], ['brocolis', 'Brócolis'], ['couve_flor', 'Couve-flor'], ['repolho', 'Repolho'], ['ervilha', 'Ervilha'], ['milho', 'Milho verde']] },
+    { titulo: 'Frutas', itens: [['maca', 'Maçã'], ['pera', 'Pera'], ['manga', 'Manga'], ['melancia', 'Melancia'], ['pessego', 'Pêssego'], ['ameixa', 'Ameixa'], ['abacate', 'Abacate'], ['frutas_secas', 'Frutas secas']] },
+    { titulo: 'Laticínios com lactose', itens: [['requeijao', 'Requeijão'], ['iogurte', 'Iogurte'], ['sorvete', 'Sorvete'], ['queijo_fresco', 'Queijos frescos']] },
+    { titulo: 'Trigo', itens: [['macarrao', 'Macarrão'], ['bolo', 'Bolo']] },
+    { titulo: 'Oleaginosas', itens: [['caju', 'Castanha de caju'], ['pistache', 'Pistache']] },
+  ],
+
   treinos: [
     { id: 'A', nome: 'Treino A', desc: 'Peito, ombros e tríceps' },
     { id: 'B', nome: 'Treino B', desc: 'Costas, posterior de ombro e bíceps' },
