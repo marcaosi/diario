@@ -96,6 +96,7 @@
       sono: { horas: 7, qualidade: null, local: null, descansado: null },
       joelho: { acordar: null, escada: null, pior: null, sinais: [] },
       treino: { tipo: null, fisio: null, durante: null, depois: null, sensacao: null, intensidade: null, intensidadeObs: '', ajustes: '' },
+      joelhoEx: { fisio: null, fisioDor: null, bike: null, bikeDor: null, bikeMin: 20 },
       fodmap: { padrao: P.fodmapPadrao.map((x) => x.id), extras: [], outros: '' },
       atividades: { lista: [], dorMuay: null, dorVolei: null, minErgo: 20, minRua: 30 },
       refeicoes: {},
@@ -258,7 +259,6 @@
         const treinou = t.tipo && t.tipo !== 'nao';
         return [
           pergunta('Qual treino você fez?', chips('treino.tipo', P.treinos.map((x) => ({ v: x.id, l: x.nome, d: x.desc })), { lista: true })),
-          treinou ? pergunta('Fez os exercícios da fisio?', chips('treino.fisio', [{ v: 'sim', l: 'Sim' }, { v: 'parte', l: 'Parte deles' }, { v: 'nao', l: 'Não' }])) : '',
           treinou ? campoDor('treino.durante', 'Dor no joelho durante o treino') : '',
           treinou ? campoDor('treino.depois', 'Dor logo depois do treino') : '',
           treinou ? pergunta('Como sentiu o treino?', chips('treino.sensacao', [{ v: 'leve', l: 'Leve' }, { v: 'ponto', l: 'No ponto' }, { v: 'pesado', l: 'Pesado' }])) : '',
@@ -270,6 +270,20 @@
       },
     },
     {
+      titulo: 'Exercícios para o joelho',
+      intro: 'Os exercícios da fisio e a bike ergométrica do dia.',
+      render: () => {
+        const x = d().joelhoEx;
+        return [
+          pergunta('Fez os exercícios da fisio?', chips('joelhoEx.fisio', [{ v: 'sim', l: 'Sim' }, { v: 'nao', l: 'Não' }])),
+          x.fisio === 'sim' ? campoDor('joelhoEx.fisioDor', 'Dor no joelho durante os exercícios da fisio') : '',
+          pergunta('Fez bike ergométrica?', chips('joelhoEx.bike', [{ v: 'sim', l: 'Sim' }, { v: 'nao', l: 'Não' }])),
+          x.bike === 'sim' ? pergunta('Tempo na bike', stepper('joelhoEx.bikeMin', { min: 5, max: 180, passo: 5, unidade: 'min' })) : '',
+          x.bike === 'sim' ? pergunta('Sentiu dor no joelho na bike?', chips('joelhoEx.bikeDor', [{ v: 'sim', l: 'Sim' }, { v: 'nao', l: 'Não' }])) : '',
+        ].join('');
+      },
+    },
+    {
       titulo: 'Outras atividades',
       intro: 'Tudo o que movimentou o joelho além da musculação.',
       render: () => {
@@ -277,11 +291,10 @@
         const l = a.lista || [];
         return [
           pergunta('O que mais você fez hoje?', chips('atividades.lista', [
-            ...P.atividades.map((x) => ({ v: x.id, l: x.nome })), { v: 'nenhuma', l: 'Nada além da musculação' },
+            ...P.atividades.filter((x) => x.id !== 'bike_ergo').map((x) => ({ v: x.id, l: x.nome })), { v: 'nenhuma', l: 'Nada além da musculação' },
           ], { multi: true })),
           l.includes('muaythai') ? campoDor('atividades.dorMuay', 'Dor durante o Muay Thai') : '',
           l.includes('volei') ? campoDor('atividades.dorVolei', 'Dor durante o vôlei') : '',
-          l.includes('bike_ergo') ? pergunta('Bike ergométrica', stepper('atividades.minErgo', { min: 5, max: 180, passo: 5, unidade: 'min' })) : '',
           l.includes('bike_rua') ? pergunta('Bike de rua', stepper('atividades.minRua', { min: 5, max: 300, passo: 5, unidade: 'min' })) : '',
         ].join('');
       },
@@ -383,6 +396,14 @@
       if (t.ajustes) L.push(`  Ajustes no treino: ${t.ajustes}`);
     }
 
+    const jx = e.joelhoEx || {};
+    const jxl = [];
+    if (jx.fisio === 'sim') jxl.push(`exercícios da fisio${jx.fisioDor != null ? ` (dor ${jx.fisioDor})` : ''}`);
+    if (jx.fisio === 'nao') jxl.push('sem exercícios da fisio');
+    if (jx.bike === 'sim') jxl.push(`bike ergométrica ${jx.bikeMin} min${jx.bikeDor === 'sim' ? ' com dor' : jx.bikeDor === 'nao' ? ' sem dor' : ''}`);
+    if (jx.bike === 'nao') jxl.push('sem bike');
+    if (jxl.length) L.push(`  Joelho (exercícios): ${jxl.join(', ')}`);
+
     const a = e.atividades || {};
     const at = (a.lista || []).filter((x) => x !== 'nenhuma').map((id) => {
       if (id === 'muaythai') return `Muay Thai${a.dorMuay != null ? ` (dor ${a.dorMuay})` : ''}`;
@@ -473,9 +494,17 @@
     }
     const bike = lista.reduce((s, e) => {
       const l = (e.atividades && e.atividades.lista) || [];
-      return s + (l.includes('bike_ergo') ? e.atividades.minErgo || 0 : 0) + (l.includes('bike_rua') ? e.atividades.minRua || 0 : 0);
+      const jx = e.joelhoEx || {};
+      return s + (l.includes('bike_ergo') ? e.atividades.minErgo || 0 : 0) + (l.includes('bike_rua') ? e.atividades.minRua || 0 : 0) + (jx.bike === 'sim' ? jx.bikeMin || 0 : 0);
     }, 0);
     L.push(`- Bike no período: ${bike} min`);
+    const comJx = lista.filter((e) => e.joelhoEx && (e.joelhoEx.fisio || e.joelhoEx.bike));
+    if (comJx.length) {
+      const fis = comJx.filter((e) => e.joelhoEx.fisio === 'sim');
+      const bk = comJx.filter((e) => e.joelhoEx.bike === 'sim');
+      L.push(`- Exercícios da fisio: ${fis.length} de ${comJx.length} dias${fis.length ? `, dor média ${fmtNum(media(fis.map((e) => e.joelhoEx.fisioDor)))}` : ''}`);
+      L.push(`- Bike ergométrica: ${bk.length} de ${comJx.length} dias${bk.length ? `, com dor em ${bk.filter((e) => e.joelhoEx.bikeDor === 'sim').length}` : ''}`);
+    }
 
     let total = 0; let seguidas = 0;
     const r18 = { seguiu: 0, parcial: 0, trocou: 0, pulou: 0 };
