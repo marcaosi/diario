@@ -12,6 +12,7 @@
     editandoData: null,
     step: 0,
     periodo: 7,
+    periodoNutri: 7,
     erroLogin: '',
     salvando: false,
   };
@@ -182,6 +183,16 @@
     { v: 'pulou', l: 'Pulei' },
   ];
 
+  const MOTIVOS = [
+    { v: 'sem_tempo', l: 'Sem tempo' },
+    { v: 'sem_fome', l: 'Sem fome' },
+    { v: 'esqueci', l: 'Esqueci' },
+    { v: 'sem_preparo', l: 'Não tinha pronto' },
+    { v: 'evento', l: 'Compromisso ou evento' },
+    { v: 'outro', l: 'Outro' },
+  ];
+  const nomeMotivo = (x) => (x.motivo === 'outro' ? (x.motivoTexto || 'outro') : ((MOTIVOS.find((m) => m.v === x.motivo) || {}).l || '').toLowerCase());
+
   function blocoRefeicao(r) {
     const f = `refeicoes.${r.id}`;
     const status = getPath(d(), `${f}.status`);
@@ -193,6 +204,7 @@
       ${r.destaque ? '<p class="nota">O horário mais difícil. Registrar com sinceridade é o que ajuda.</p>' : ''}
       ${chips(`${f}.status`, STATUS_REFEICAO)}
       ${precisaTexto ? texto(`${f}.oque`, 'O que você comeu?', r.id === 'lanche_18' ? 'Ex.: salgados na lanchonete' : 'Ex.: troquei o melão por banana') : ''}
+      ${status === 'pulou' ? `<p class="sub">Por que pulou?</p>${chips(`${f}.motivo`, MOTIVOS)}${getPath(d(), `${f}.motivo`) === 'outro' ? texto(`${f}.motivoTexto`, 'Qual foi o motivo?', 'Ex.: reunião que atrasou') : ''}` : ''}
     </section>`;
   }
 
@@ -421,7 +433,8 @@
       L.push(`  Dieta: ${seguidas} de ${marcadas.length} refeições registradas seguiram o plano`);
       marcadas.filter((r) => ref[r.id].status !== 'seguiu').forEach((r) => {
         const x = ref[r.id];
-        L.push(`    ${r.hora} ${r.nome}: ${ROTULOS.status[x.status]}${x.oque ? ` (${x.oque})` : ''}`);
+        const det = [x.oque, x.status === 'pulou' && x.motivo ? `motivo: ${nomeMotivo(x)}` : ''].filter(Boolean).join('; ');
+        L.push(`    ${r.hora} ${r.nome}: ${ROTULOS.status[x.status]}${det ? ` (${det})` : ''}`);
       });
     }
 
@@ -600,7 +613,7 @@
   // ---------------- Telas ----------------
   function abas(atual) {
     const item = (id, nome) => `<button type="button" data-act="ir" data-view="${id}"${atual === id ? ' aria-current="page"' : ''}>${nome}</button>`;
-    return `<nav class="abas" aria-label="Navegação"><div>${item('home', 'Hoje')}${item('historico', 'Histórico')}${item('resumo', 'Resumo')}</div></nav>`;
+    return `<nav class="abas" aria-label="Navegação"><div>${item('home', 'Hoje')}${item('historico', 'Histórico')}${item('nutri', 'Dieta')}${item('resumo', 'Resumo')}</div></nav>`;
   }
 
   function telaLogin() {
@@ -711,6 +724,144 @@
     </main>${abas('resumo')}`;
   }
 
+  // ---------------- Aba Dieta (resumo para a nutricionista) ----------------
+  const PESO = { seguiu: 1, parcial: 0.5, trocou: 0, pulou: 0 };
+  const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const pct = (n) => `${Math.round(n * 100)}%`;
+
+  function dadosDieta(dias) {
+    const fim = hoje();
+    const datas = Array.from({ length: dias }, (_, i) => somaDias(fim, i - dias + 1));
+    const porDia = datas.map((dt) => {
+      const e = state.entries[dt];
+      const regs = P.refeicoes.map((r) => (e && e.refeicoes && e.refeicoes[r.id]) || null).filter((x) => x && x.status);
+      const pontos = regs.reduce((s, x) => s + PESO[x.status], 0);
+      return { dt, n: regs.length, acerto: regs.length ? pontos / regs.length : null, falhas: regs.filter((x) => x.status === 'pulou' || x.status === 'trocou').length };
+    });
+    const porRefeicao = P.refeicoes.map((r) => {
+      const c = { seguiu: 0, parcial: 0, trocou: 0, pulou: 0 };
+      const motivos = {};
+      datas.forEach((dt) => {
+        const x = state.entries[dt] && state.entries[dt].refeicoes && state.entries[dt].refeicoes[r.id];
+        if (!x || !x.status) return;
+        c[x.status] += 1;
+        if (x.status === 'pulou' && x.motivo) { const m = nomeMotivo(x); motivos[m] = (motivos[m] || 0) + 1; }
+      });
+      const n = c.seguiu + c.parcial + c.trocou + c.pulou;
+      return { r, c, n, motivos, acerto: n ? (c.seguiu + c.parcial * 0.5) / n : null };
+    });
+    const semana = DIAS_LONGOS.map((nome, i) => {
+      const ds = porDia.filter((x) => x.n && parseData(x.dt).getDay() === i);
+      const total = ds.reduce((s, x) => s + x.n, 0);
+      const falhas = ds.reduce((s, x) => s + x.falhas, 0);
+      return { nome, dias: ds.length, total, falhas, taxa: total ? falhas / total : null };
+    });
+    const motivos = {};
+    porRefeicao.forEach((x) => Object.entries(x.motivos).forEach(([m, n]) => { motivos[m] = (motivos[m] || 0) + n; }));
+    const comReg = porDia.filter((x) => x.n);
+    const totalN = comReg.reduce((s, x) => s + x.n, 0);
+    const geral = totalN ? comReg.reduce((s, x) => s + x.acerto * x.n, 0) / totalN : null;
+    return { datas, porDia, porRefeicao, semana, motivos, geral, diasComReg: comReg.length };
+  }
+
+  function graficoDieta(porDia) {
+    const W = 340; const H = 170; const pl = 30; const pr = 6; const pt = 8; const pb = 26;
+    const n = porDia.length; const slot = (W - pl - pr) / n; const bw = Math.max(3, Math.min(22, slot * 0.7));
+    const y = (v) => pt + (1 - v) * (H - pt - pb);
+    const grade = [0, 0.5, 1].map((v) => `<line class="grade" x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}"/><text class="eixo" x="${pl - 5}" y="${y(v) + 3}" text-anchor="end">${v * 100}%</text>`).join('');
+    const barras = porDia.map((x, i) => {
+      const cx = pl + slot * i + slot / 2;
+      if (x.acerto == null) return `<rect class="b-vazio" x="${(cx - bw / 2).toFixed(1)}" y="${y(0) - 3}" width="${bw.toFixed(1)}" height="3" rx="1"><title>${fmtData(x.dt)}: sem registro</title></rect>`;
+      const h = Math.max(2, y(0) - y(x.acerto));
+      const cls = x.acerto >= 0.75 ? 'b-ok' : x.acerto >= 0.5 ? 'b-mid' : 'b-bad';
+      return `<rect class="${cls}" x="${(cx - bw / 2).toFixed(1)}" y="${(y(0) - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2"><title>${fmtData(x.dt)}: ${pct(x.acerto)} (${x.n} refeições)</title></rect>`;
+    }).join('');
+    const passo = n <= 7 ? 1 : n <= 14 ? 2 : 5;
+    const rot = porDia.map((x, i) => (i % passo === 0 || i === n - 1)
+      ? `<text class="eixo" x="${(pl + slot * i + slot / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${n <= 14 ? fmtData(x.dt).split(' ')[1].slice(0, 2) : fmtData(x.dt).split(' ')[1]}</text>` : '').join('');
+    return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Percentual de acerto da dieta por dia">${grade}${barras}${rot}</svg>
+      <div class="legenda"><span><i style="background:var(--verde)"></i>75% ou mais</span><span><i style="background:var(--amarelo)"></i>50 a 74%</span><span><i style="background:var(--vermelho)"></i>abaixo de 50%</span><span><i style="background:var(--line)"></i>sem registro</span></div></div>`;
+  }
+
+  function barraH(rotulo, valor, max, texto, cls = '') {
+    const w = max ? (valor / max) * 100 : 0;
+    return `<div class="hbar ${cls}"><span class="hbar-l">${rotulo}</span><span class="hbar-t"><i style="width:${w.toFixed(1)}%"></i></span><span class="hbar-v">${texto}</span></div>`;
+  }
+
+  const juntar = (arr) => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} e ${arr[arr.length - 1]}`);
+  function maiores(lista, valor) {
+    const max = Math.max(0, ...lista.map(valor));
+    return max > 0 ? { max, itens: lista.filter((x) => valor(x) === max) } : null;
+  }
+
+  function textoNutri(dd, dias) {
+    const L = [`Resumo da dieta do ${P.nome}: últimos ${dias} dias (${dd.diasComReg} dias registrados)`];
+    L.push('Acerto: "segui" conta 100%, "em parte" conta 50%, "troquei" e "pulei" contam 0%.');
+    if (dd.geral != null) L.push(`Acerto geral: ${pct(dd.geral)}`);
+    L.push('', 'Por refeição:');
+    dd.porRefeicao.filter((x) => x.n).forEach((x) => L.push(`- ${x.r.hora} ${x.r.nome}: ${pct(x.acerto)} de acerto (seguiu ${x.c.seguiu}, em parte ${x.c.parcial}, trocou ${x.c.trocou}, pulou ${x.c.pulou})`));
+    const mf = maiores(dd.porRefeicao, (x) => x.c.pulou);
+    const ms = maiores(dd.porRefeicao, (x) => x.c.trocou);
+    L.push('');
+    if (mf) L.push(`Refeição mais pulada: ${juntar(mf.itens.map((x) => x.r.nome))} (${mf.max}x)`);
+    if (ms) L.push(`Refeição mais substituída: ${juntar(ms.itens.map((x) => x.r.nome))} (${ms.max}x)`);
+    const ds = maiores(dd.semana.filter((x) => x.taxa != null), (x) => x.taxa);
+    if (ds) L.push(`Dia da semana com mais falhas: ${juntar(ds.itens.map((x) => x.nome))} (${pct(ds.max)} das refeições puladas ou trocadas)`);
+    const mot = Object.entries(dd.motivos).sort((a, b) => b[1] - a[1]);
+    if (mot.length) L.push(`Motivos para pular: ${mot.map(([m, n]) => `${m} ${n}x`).join(', ')}`);
+    return L.join('\n');
+  }
+
+  function telaNutri() {
+    const dias = state.periodoNutri;
+    const dd = dadosDieta(dias);
+    const opcoes = [7, 14, 30].map((n) => `<button type="button" class="chip${dias === n ? ' on' : ''}" data-act="periodoNutri" data-n="${n}">${n} dias</button>`).join('');
+    const topo = `<header class="topo"><div><h1>Dieta</h1><p class="help">Resumo para levar à nutricionista.</p></div></header>
+      <div class="chips" style="margin-bottom:20px">${opcoes}</div>`;
+    if (!dd.diasComReg) return `<main>${topo}<p class="vazio">Nenhuma refeição registrada nesse período. Registre o dia pela aba Hoje.</p></main>${abas('nutri')}`;
+
+    const mf = maiores(dd.porRefeicao, (x) => x.c.pulou);
+    const ms = maiores(dd.porRefeicao, (x) => x.c.trocou);
+    const semOrd = dd.semana.filter((x) => x.taxa != null);
+    const pior = maiores(semOrd, (x) => x.taxa);
+
+    const destaques = `<div class="numeros">
+        <div class="numero"><b>${pct(dd.geral)}</b><span>acerto no período</span></div>
+        <div class="numero"><b>${mf ? mf.max + 'x' : '–'}</b><span>${mf ? `mais pulada: ${esc(juntar(mf.itens.map((x) => x.r.nome)))}` : 'nenhuma refeição pulada'}</span></div>
+        <div class="numero"><b>${ms ? ms.max + 'x' : '–'}</b><span>${ms ? `mais trocada: ${esc(juntar(ms.itens.map((x) => x.r.nome)))}` : 'nenhuma refeição trocada'}</span></div>
+      </div>`;
+
+    const maxRef = Math.max(...dd.porRefeicao.map((x) => x.n), 1);
+    const refeicoes = dd.porRefeicao.filter((x) => x.n).map((x) =>
+      barraH(`${esc(x.r.nome)}<small>${esc(x.r.hora)}</small>`, x.acerto, 1, pct(x.acerto), x.acerto >= 0.75 ? 'ok' : x.acerto >= 0.5 ? 'mid' : 'bad')
+      + `<p class="hbar-sub">seguiu ${x.c.seguiu} · em parte ${x.c.parcial} · trocou ${x.c.trocou} · pulou ${x.c.pulou}</p>`).join('');
+
+    const maxTaxa = Math.max(...semOrd.map((x) => x.taxa), 0.01);
+    const semana = dd.semana.map((x) => x.taxa == null
+      ? barraH(x.nome, 0, 1, 'sem registro', 'off')
+      : barraH(x.nome, x.taxa, maxTaxa, `${pct(x.taxa)}`, pior && pior.itens.includes(x) ? 'bad' : 'neutro')).join('');
+
+    const mot = Object.entries(dd.motivos).sort((a, b) => b[1] - a[1]);
+    const maxMot = mot.length ? mot[0][1] : 1;
+    const motivos = mot.length ? mot.map(([m, n]) => barraH(esc(m), n, maxMot, `${n}x`, 'neutro')).join('')
+      : '<p class="vazio">Nenhum motivo registrado ainda. Ele é perguntado quando você marca que pulou uma refeição.</p>';
+
+    return `<main>${topo}
+      ${destaques}
+      <section class="bloco"><h2>Acerto por dia</h2>
+        <p class="help" style="margin-bottom:12px">"Segui" conta 100%, "em parte" conta 50%, "troquei" e "pulei" contam 0%.</p>
+        <div class="painel">${graficoDieta(dd.porDia)}</div></section>
+      <section class="bloco"><h2>Por refeição</h2><div class="painel hbars">${refeicoes}</div></section>
+      <section class="bloco"><h2>Falhas por dia da semana</h2>
+        <p class="help" style="margin-bottom:12px">${pior ? `${juntar(pior.itens.map((x) => x.nome))} ${pior.itens.length > 1 ? 'são os dias' : 'é o dia'} com mais refeições puladas ou trocadas (${pct(pior.max)}).` : 'Nenhuma refeição pulada ou trocada no período.'}</p>
+        <div class="painel hbars">${semana}</div></section>
+      <section class="bloco"><h2>Motivos para pular</h2><div class="painel hbars">${motivos}</div></section>
+      <section class="bloco"><h2>Texto para a consulta</h2>
+        <textarea class="resumo-texto" id="resumo-nutri" readonly style="min-height:220px">${esc(textoNutri(dd, dias))}</textarea>
+        <div class="acoes"><button class="btn block" data-act="copiarNutri">Copiar resumo da dieta</button></div></section>
+    </main>${abas('nutri')}`;
+  }
+
   function telaForm() {
     const etapa = ETAPAS[state.step];
     const total = ETAPAS.length;
@@ -733,7 +884,7 @@
   }
 
   function render() {
-    const telas = { login: telaLogin, home: telaHome, historico: telaHistorico, resumo: telaResumo, form: telaForm };
+    const telas = { login: telaLogin, home: telaHome, historico: telaHistorico, nutri: telaNutri, resumo: telaResumo, form: telaForm };
     const fn = telas[state.view];
     if (!fn) { appEl.innerHTML = '<p class="carregando">Carregando…</p>'; return; }
     const y = window.scrollY;
@@ -820,6 +971,12 @@
     abrir(el) { abrirFormulario(el.dataset.date); },
     ir(el) { state.view = el.dataset.view; render(); window.scrollTo(0, 0); },
     periodo(el) { state.periodo = Number(el.dataset.n); render(); },
+    periodoNutri(el) { state.periodoNutri = Number(el.dataset.n); render(); },
+    async copiarNutri() {
+      const ta = document.getElementById('resumo-nutri');
+      try { await navigator.clipboard.writeText(ta.value); } catch { ta.removeAttribute('readonly'); ta.select(); document.execCommand('copy'); ta.setAttribute('readonly', ''); }
+      toast('Resumo da dieta copiado.');
+    },
     async copiar() {
       const ta = document.getElementById('resumo');
       try {
