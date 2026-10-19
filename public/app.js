@@ -193,6 +193,13 @@
   ];
   const nomeMotivo = (x) => (x.motivo === 'outro' ? (x.motivoTexto || 'outro') : ((MOTIVOS.find((m) => m.v === x.motivo) || {}).l || '').toLowerCase());
 
+  const PROTEINAS = [
+    { v: 'vermelha', l: 'Carne vermelha' },
+    { v: 'peixe', l: 'Peixe' },
+    { v: 'frango', l: 'Frango' },
+  ];
+  const nomeProteina = (v) => ((PROTEINAS.find((p) => p.v === v) || {}).l || '').toLowerCase();
+
   function blocoRefeicao(r) {
     const f = `refeicoes.${r.id}`;
     const status = getPath(d(), `${f}.status`);
@@ -203,6 +210,7 @@
       <p class="help">${esc(r.desc)}</p>
       ${r.destaque ? '<p class="nota">O horário mais difícil. Registrar com sinceridade é o que ajuda.</p>' : ''}
       ${chips(`${f}.status`, STATUS_REFEICAO)}
+      ${r.id === 'jantar' && status && status !== 'pulou' ? `<p class="sub">Proteína do jantar</p>${chips(`${f}.proteina`, PROTEINAS)}` : ''}
       ${precisaTexto ? texto(`${f}.oque`, 'O que você comeu?', r.id === 'lanche_18' ? 'Ex.: salgados na lanchonete' : 'Ex.: troquei o melão por banana') : ''}
       ${status === 'pulou' ? `<p class="sub">Por que pulou?</p>${chips(`${f}.motivo`, MOTIVOS)}${getPath(d(), `${f}.motivo`) === 'outro' ? texto(`${f}.motivoTexto`, 'Qual foi o motivo?', 'Ex.: reunião que atrasou') : ''}` : ''}
     </section>`;
@@ -437,6 +445,7 @@
         L.push(`    ${r.hora} ${r.nome}: ${ROTULOS.status[x.status]}${det ? ` (${det})` : ''}`);
       });
     }
+    if (ref.jantar && ref.jantar.proteina) L.push(`  Proteína do jantar: ${nomeProteina(ref.jantar.proteina)}`);
 
     const sup = e.suplementos || [];
     if (sup.length) {
@@ -474,6 +483,15 @@
       ini, fim,
       lista: Object.values(state.entries).filter((e) => e.date >= ini && e.date <= fim).sort((a, b) => a.date.localeCompare(b.date)),
     };
+  }
+
+  function contarProteinas(lista) {
+    const c = { vermelha: 0, peixe: 0, frango: 0, total: 0 };
+    lista.forEach((e) => {
+      const v = e && e.refeicoes && e.refeicoes.jantar && e.refeicoes.jantar.proteina;
+      if (v && c[v] != null) { c[v] += 1; c.total += 1; }
+    });
+    return c;
   }
 
   function gerarResumo(dias) {
@@ -541,6 +559,8 @@
     const gp = lista.map((e) => Number(e.glicemia && e.glicemia.posShake)).filter((n) => n > 0);
     if (gj.length) L.push(`- Glicemia de jejum: média ${fmtNum(media(gj))} mg/dL em ${gj.length} medições (de ${Math.min(...gj)} a ${Math.max(...gj)})`);
     if (gp.length) L.push(`- Glicemia depois do shake: média ${fmtNum(media(gp))} mg/dL em ${gp.length} medições (de ${Math.min(...gp)} a ${Math.max(...gp)})`);
+    const pj = contarProteinas(lista);
+    if (pj.total) L.push(`- Proteína do jantar: ${PROTEINAS.map((p) => `${p.l.toLowerCase()} ${pj[p.v]}x`).join(', ')}`);
     const comInt = lista.filter((e) => e.treino && e.treino.intensidade != null);
     if (comInt.length) L.push(`- Intensidade média da musculação: ${fmtNum(media(comInt.map((e) => e.treino.intensidade)))}/10`);
     const comFod = lista.filter((e) => e.fodmap);
@@ -761,7 +781,8 @@
     const comReg = porDia.filter((x) => x.n);
     const totalN = comReg.reduce((s, x) => s + x.n, 0);
     const geral = totalN ? comReg.reduce((s, x) => s + x.acerto * x.n, 0) / totalN : null;
-    return { datas, porDia, porRefeicao, semana, motivos, geral, diasComReg: comReg.length };
+    const proteinas = contarProteinas(datas.map((dt) => state.entries[dt]).filter(Boolean));
+    return { datas, porDia, porRefeicao, semana, motivos, proteinas, geral, diasComReg: comReg.length };
   }
 
   function graficoDieta(porDia) {
@@ -809,6 +830,7 @@
     if (ds) L.push(`Dia da semana com mais falhas: ${juntar(ds.itens.map((x) => x.nome))} (${pct(ds.max)} das refeições puladas ou trocadas)`);
     const mot = Object.entries(dd.motivos).sort((a, b) => b[1] - a[1]);
     if (mot.length) L.push(`Motivos para pular: ${mot.map(([m, n]) => `${m} ${n}x`).join(', ')}`);
+    if (dd.proteinas.total) L.push(`Proteína do jantar (${dd.proteinas.total} jantares): ${PROTEINAS.map((p) => `${p.l.toLowerCase()} ${dd.proteinas[p.v]}x`).join(', ')}`);
     return L.join('\n');
   }
 
@@ -856,6 +878,11 @@
         <p class="help" style="margin-bottom:12px">${pior ? `${juntar(pior.itens.map((x) => x.nome))} ${pior.itens.length > 1 ? 'são os dias' : 'é o dia'} com mais refeições puladas ou trocadas (${pct(pior.max)}).` : 'Nenhuma refeição pulada ou trocada no período.'}</p>
         <div class="painel hbars">${semana}</div></section>
       <section class="bloco"><h2>Motivos para pular</h2><div class="painel hbars">${motivos}</div></section>
+      <section class="bloco"><h2>Proteína do jantar</h2>
+        <p class="help" style="margin-bottom:12px">Estratégia combinada: priorizar peixe (tilápia) e frango à noite.</p>
+        <div class="painel hbars">${dd.proteinas.total
+          ? PROTEINAS.map((p) => barraH(p.l, dd.proteinas[p.v], Math.max(dd.proteinas.vermelha, dd.proteinas.peixe, dd.proteinas.frango), `${dd.proteinas[p.v]}x`, p.v === 'vermelha' ? 'mid' : 'ok')).join('')
+          : '<p class="vazio">Nenhum jantar com proteína registrada ainda. A pergunta aparece no registro do jantar.</p>'}</div></section>
       <section class="bloco"><h2>Texto para a consulta</h2>
         <textarea class="resumo-texto" id="resumo-nutri" readonly style="min-height:220px">${esc(textoNutri(dd, dias))}</textarea>
         <div class="acoes"><button class="btn block" data-act="copiarNutri">Copiar resumo da dieta</button></div></section>
