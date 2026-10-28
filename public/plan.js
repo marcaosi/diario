@@ -3,6 +3,9 @@
 window.PLAN = {
   nome: 'Marcos',
 
+  // Meta diária de água, em litros (usada na barra da tela inicial)
+  metaAgua: 4,
+
   // Plano de out a nov/2026 (prescrito em 10/10/2026)
   refeicoes: [
     { id: 'shake', hora: '06:30', nome: 'Café da manhã (pré-treino)', desc: 'Shake: leite desnatado, banana, beterraba em pó, whey, feno-grego, maca, guaraná e beta-alanina.' },

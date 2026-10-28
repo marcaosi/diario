@@ -12,6 +12,8 @@
     editandoData: null,
     step: 0,
     periodo: 7,
+    agua: null, // { valor } quando o editor de água está aberto
+    salvandoAgua: false,
     periodoNutri: 7,
     erroLogin: '',
     salvando: false,
@@ -649,6 +651,47 @@
     </main>`;
   }
 
+  // Um registro criado só pela água ainda não conta como "dia registrado"
+  function temRegistroCompleto(e) {
+    return !!e && Object.keys(e).some((k) => !['date', 'updatedAt', 'agua'].includes(k));
+  }
+
+  const fmtL = (n) => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+  function cartaoAgua(dataHoje) {
+    const reg = state.entries[dataHoje];
+    const atual = reg && typeof reg.agua === 'number' ? reg.agua : 0;
+    const meta = P.metaAgua || 4;
+    const pctMeta = (v) => Math.min(100, (v / meta) * 100).toFixed(1);
+    if (!state.agua) {
+      return `<section class="agua">
+        <div class="agua-topo">
+          <div><h2>Água de hoje</h2><p class="muted"><b class="agua-num">${fmtL(atual)} L</b> de ${fmtL(meta)} L</p></div>
+          <button class="btn small" data-act="aguaAbrir">Registrar água</button>
+        </div>
+        <div class="agua-barra" aria-hidden="true"><i style="width:${pctMeta(atual)}%"></i></div>
+      </section>`;
+    }
+    const v = state.agua.valor;
+    const botoes = [[-0.25, '− 250 ml'], [0.25, '+ 250 ml'], [0.5, '+ 500 ml'], [1, '+ 1 L']]
+      .map(([d, l]) => `<button type="button" class="chip" data-act="aguaSomar" data-delta="${d}">${l}</button>`).join('');
+    return `<section class="agua aberta" aria-label="Editar água de hoje">
+      <h2>Água de hoje</h2>
+      <p class="muted">Ajuste o total que você bebeu até agora.</p>
+      <div class="agua-editor">
+        <button type="button" class="agua-menos" aria-label="Diminuir 250 ml" data-act="aguaSomar" data-delta="-0.25">−</button>
+        <label class="agua-campo"><input id="agua-valor" type="text" inputmode="decimal" autocomplete="off" value="${fmtL(v)}" aria-label="Litros de água"><span>L</span></label>
+        <button type="button" class="agua-mais" aria-label="Aumentar 250 ml" data-act="aguaSomar" data-delta="0.25">+</button>
+      </div>
+      <div class="agua-barra" aria-hidden="true"><i style="width:${pctMeta(v)}%"></i></div>
+      <div class="chips agua-atalhos">${botoes}</div>
+      <div class="agua-acoes">
+        <button class="btn ghost" data-act="aguaCancelar">Cancelar</button>
+        <button class="btn" data-act="aguaSalvar"${state.salvandoAgua ? ' disabled' : ''}>${state.salvandoAgua ? 'Salvando…' : 'Salvar'}</button>
+      </div>
+    </section>`;
+  }
+
   function telaHome() {
     const h = new Date().getHours();
     const saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
@@ -657,7 +700,7 @@
     const j = (reg && reg.joelho) || {};
     const sem = nivel(j.acordar);
 
-    const cartaoHoje = reg
+    const cartaoHoje = temRegistroCompleto(reg)
       ? `<section class="hoje">
           <h2>Dia registrado</h2>
           <p class="muted">${esc(reg.treino && reg.treino.tipo ? (reg.treino.tipo === 'nao' ? 'Sem musculação' : nomeTreino(reg.treino.tipo)) : 'Treino não informado')}${fezMuay(reg) ? ' e Muay Thai' : ''}</p>
@@ -694,6 +737,7 @@
         <button class="btn ghost small" data-act="sair">Sair</button>
       </header>
       ${cartaoHoje}
+      ${cartaoAgua(dataHoje)}
       <section class="bloco"><h2>Joelho nos últimos 30 dias</h2><div class="painel">${grafico(30)}</div></section>
       ${semana}
       <section class="bloco"><h2>Semáforo do treino de perna</h2>
@@ -996,6 +1040,32 @@
       } catch (err) { toast(err.message); }
     },
     abrir(el) { abrirFormulario(el.dataset.date); },
+    aguaAbrir() {
+      const reg = state.entries[hoje()];
+      state.agua = { valor: reg && typeof reg.agua === 'number' ? reg.agua : 0 };
+      render();
+    },
+    aguaSomar(el) {
+      const v = Math.round((state.agua.valor + Number(el.dataset.delta)) * 100) / 100;
+      state.agua.valor = Math.min(15, Math.max(0, v));
+      render();
+    },
+    aguaCancelar() { state.agua = null; render(); },
+    async aguaSalvar() {
+      const dia = hoje();
+      const valor = Math.min(15, Math.max(0, Number(state.agua.valor) || 0));
+      state.salvandoAgua = true; render();
+      try {
+        const { entry } = await api(`/entries/${dia}`, { method: 'PATCH', body: JSON.stringify({ agua: valor }) });
+        state.entries[dia] = entry;
+        state.agua = null;
+        toast(`Água de hoje: ${fmtL(valor)} L`);
+      } catch (err) {
+        toast(err.message);
+      } finally {
+        state.salvandoAgua = false; render();
+      }
+    },
     ir(el) { state.view = el.dataset.view; render(); window.scrollTo(0, 0); },
     periodo(el) { state.periodo = Number(el.dataset.n); render(); },
     periodoNutri(el) { state.periodoNutri = Number(el.dataset.n); render(); },
@@ -1028,6 +1098,13 @@
 
   appEl.addEventListener('input', (e) => {
     const t = e.target;
+    if (t.id === 'agua-valor' && state.agua) {
+      const v = parseFloat(String(t.value).replace(',', '.'));
+      state.agua.valor = Number.isFinite(v) ? Math.min(15, Math.max(0, v)) : 0;
+      const barra = t.closest('.agua').querySelector('.agua-barra i');
+      if (barra) barra.style.width = `${Math.min(100, (state.agua.valor / (P.metaAgua || 4)) * 100).toFixed(1)}%`;
+      return;
+    }
     if (!t.dataset || !t.dataset.field || !state.draft) return;
     setPath(state.draft, t.dataset.field, t.value);
     if (t.dataset.rerender) render();
