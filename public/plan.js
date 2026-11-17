@@ -38,16 +38,18 @@ window.PLAN = {
     { titulo: 'Oleaginosas', itens: [['caju', 'Castanha de caju'], ['pistache', 'Pistache']] },
   ],
 
+  // Treino de novembro/2026 (personal Marco Antônio)
   treinos: [
     { id: 'A', nome: 'Treino A', desc: 'Peito, ombros e tríceps' },
-    { id: 'B', nome: 'Treino B', desc: 'Costas, posterior de ombro e bíceps' },
-    { id: 'C', nome: 'Treino C', desc: 'Perna, ênfase posterior' },
-    { id: 'D', nome: 'Treino D', desc: 'Superior completo' },
-    { id: 'E', nome: 'Treino E', desc: 'Perna, quadríceps e glúteos' },
+    { id: 'B', nome: 'Treino B', desc: 'Costas e bíceps' },
+    { id: 'C', nome: 'Treino C', desc: 'Perna, ênfase em quadríceps' },
+    { id: 'D', nome: 'Treino D', desc: 'Peito, ombros e tríceps (variação)' },
+    { id: 'E', nome: 'Treino E', desc: 'Costas, bíceps e antebraço' },
+    { id: 'F', nome: 'Treino F', desc: 'Perna, posterior e glúteos' },
     { id: 'outro', nome: 'Outro treino', desc: '' },
     { id: 'nao', nome: 'Não treinei', desc: '' },
   ],
-  treinosDePerna: ['C', 'E'],
+  treinosDePerna: ['C', 'F'],
 
   atividades: [
     { id: 'muaythai', nome: 'Muay Thai' },
@@ -56,6 +58,7 @@ window.PLAN = {
     { id: 'bike_rua', nome: 'Bike de rua' },
     { id: 'fisio', nome: 'Sessão de fisioterapia' },
     { id: 'caminhada', nome: 'Caminhada' },
+    { id: 'cardio', nome: 'Cardio' },
   ],
 
   suplementos: [
